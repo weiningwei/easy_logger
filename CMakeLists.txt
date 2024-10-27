@@ -4,6 +4,7 @@ project(easy_logger)
 
 set(CXX_STANDARD 11)
 
+include_directories("./include")
 
-add_executable(demo demo_c++/demo_c++.cpp)
+add_executable(main main.cpp)
 

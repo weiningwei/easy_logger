@@ -6,10 +6,10 @@
 #include <string>
 #include <mutex>
 
-namespace LOGGER
+namespace logger
 {
 
-    enum logger_level
+    enum LOGGER_LEVEL
     {
         DEBUG,
         INFO,
@@ -17,31 +17,83 @@ namespace LOGGER
         ERROR
     };
 
-    class Logger
+    class LOGGER
     {
     public:
-        static Logger &get_instance()
+        static LOGGER &get_instance()
         {
-            static Logger _instance;
+            static LOGGER _instance;
             return _instance;
         }
 
-        void set_log_level(const logger_level &level)
+        void set_log_level(const LOGGER_LEVEL &level)
         {
             _level = level;
         }
-        void log()
+
+        void set_log_file(const std::string &file_name)
         {
-            
+            _file_stream.open(file_name, std::ios::app);
+        }
+
+        void log(const LOGGER_LEVEL &level, const std::string &message)
+        {
+            if (level < _level)
+            {
+                return;
+            }
+            std::lock_guard<std::mutex> lock(_mtx);
+            std::ostream &output = (level >= WARNING) ? std::cerr : std::cout;
+
+            log_message(output, level, message);
+
+            if (_file_stream.is_open())
+            {
+                log_message(_file_stream, level, message);
+            }
+
+            return;
         }
 
     private:
-        Logger() : _level{INFO} {}
-        logger_level _level;
+        LOGGER() : _level{INFO} {}
+        ~LOGGER()
+        {
+            if(_file_stream.is_open())
+            {
+                _file_stream.close();
+            }
+        }
+        LOGGER_LEVEL _level;
         std::mutex _mtx;
 
+        std::ofstream _file_stream;
         //
-    }
+        LOGGER(const LOGGER &) = delete;
+        LOGGER &operator=(const LOGGER &) = delete;
+
+        void log_message(std::ostream &stream, const LOGGER_LEVEL &level,
+                         const std::string &message)
+        {
+            switch (level)
+            {
+            case DEBUG:
+                stream << "DEBUG: ";
+                break;
+            case INFO:
+                stream << "INFO: ";
+                break;
+            case WARNING:
+                stream << "WARNING: ";
+                break;
+            case ERROR:
+                stream << "ERROR: ";
+            default:
+                break;
+            }
+            stream << message << "\n";
+        }
+    };
 
 }
 
