@@ -6,6 +6,10 @@
 #include <string>
 #include <mutex>
 
+#include <thread>
+#include <queue>
+#include <condition_variable>
+
 namespace logger
 {
 
@@ -59,7 +63,7 @@ namespace logger
         LOGGER() : _level{INFO} {}
         ~LOGGER()
         {
-            if(_file_stream.is_open())
+            if (_file_stream.is_open())
             {
                 _file_stream.close();
             }
@@ -95,6 +99,51 @@ namespace logger
         }
     };
 
+    class ASYNC_LOGGER
+    {
+    public:
+        ASYNC_LOGGER() : _stop_log(false)
+        {
+            _log_thread = std::thread(&ASYNC_LOGGER::process_log, this);
+        }
+        ~ASYNC_LOGGER()
+        {
+            {
+                std::lock_guard<std::mutex> lock(_mtx);
+                _stop_log = true;
+            }
+            _cond_var.notify_all();
+            _log_thread.join();
+        }
+
+    private:
+        std::queue<std::string> _log_queue;
+        std::mutex _mtx;
+        std::condition_variable _cond_var;
+        std::thread _log_thread;
+
+        bool _stop_log;
+
+        void process_log()
+        {
+            std::ofstream log_file("log_async.txt");
+            while (true)
+            {
+                std::unique_lock<std::mutex> lock(_mtx);
+                _cond_var.wait(lock, [this]
+                        { return !_log_queue.empty() || _stop_log; });
+
+                while (!_log_queue.empty())
+                {
+                    log_file << _log_queue.front() << std::endl;
+                    _log_queue.pop();
+                }
+
+                if (_stop_log && _log_queue.empty())
+                    break;
+            }
+        }
+    };
 }
 
 #endif
